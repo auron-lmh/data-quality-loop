@@ -1,0 +1,40 @@
+{
+  "seed": 42,
+  "known_issues": [
+    {
+      "key": "orders.order_id.pk_duplicates",
+      "category": "主键重复",
+      "expected_evidence": 30
+    },
+    {
+      "key": "orders.customer_id.reference_integrity",
+      "category": "引用悬空",
+      "expected_evidence": 50
+    },
+    {
+      "key": "orders.amount.empty_rate",
+      "category": "空值",
+      "expected_evidence": 300
+    },
+    {
+      "key": "orders.order_date.date_format",
+      "category": "日期格式",
+      "expected_evidence": 100
+    },
+    {
+      "key": "orders_daily_summary.gmv.amount_reconciliation",
+      "category": "金额勾稽",
+      "expected_evidence": 5
+    },
+    {
+      "key": "customers.phone.empty_rate",
+      "category": "空值",
+      "expected_evidence": 300
+    },
+    {
+      "key": "customers.vip_level.value_enum",
+      "category": "类型不一致",
+      "expected_evidence": 200
+    }
+  ]
+}

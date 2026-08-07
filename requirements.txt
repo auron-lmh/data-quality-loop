@@ -1,0 +1,18 @@
+# ========== Loop 编排 ==========
+deepagents>=0.7
+langchain-deepseek>=1.1
+langchain>=1.3
+langgraph>=1.2
+
+# ========== 数据 ==========
+duckdb>=1.5
+pandas>=2.0
+
+# ========== 配置 / 工具 ==========
+pyyaml>=6.0
+python-dotenv>=1.0
+
+# ========== 接入(M3/M4) ==========
+fastapi>=0.110
+uvicorn>=0.29
+mcp>=2.0

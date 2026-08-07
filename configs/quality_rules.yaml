@@ -1,0 +1,26 @@
+# =============================================================
+# 质量规则配置 —— 每张表声明应用哪些规则 + 阈值
+# 规则引擎与配置解耦(同 Data Agent 的 MDL 治理思想):
+#   加表/加规则只改这里,不改引擎代码
+# =============================================================
+
+tables:
+  # ── 订单表:埋 4 类问题 ──
+  orders:
+    - { type: pk_duplicates,      columns: [order_id] }
+    - { type: empty_rate,         column: amount, threshold: 0.0 }
+    - { type: date_format,        column: order_date, pattern: '^\d{4}-\d{2}-\d{2}$' }
+    - { type: reference_integrity, column: customer_id, ref_table: customers, ref_column: customer_id }
+    - { type: value_enum,         column: status, allowed: [pending, paid, shipped, completed, refunded] }
+
+  # ── 日汇总表:埋 1 类问题(金额勾稽不平) ──
+  orders_daily_summary:
+    - { type: amount_reconciliation,
+        detail_table: orders, detail_column: amount, detail_date_column: order_date,
+        summary_column: gmv, summary_date_column: order_date,
+        tolerance: 0.5 }
+
+  # ── 客户表:埋 2 类问题 ──
+  customers:
+    - { type: empty_rate,   column: phone, threshold: 0.0 }
+    - { type: value_enum,   column: vip_level, allowed: [普通, 银卡, 金卡, 钻石] }

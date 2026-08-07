@@ -1,0 +1,20 @@
+# ========== 密钥 ==========
+.env
+
+# ========== 数据(生成物,可重建) ==========
+data/warehouse.duckdb
+data/quality_audit.db
+data/*.duckdb
+
+# ========== Python ==========
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ========== 测试 / 工具 ==========
+.pytest_cache/
+.ruff_cache/
+.idea/
+.vscode/
