@@ -60,6 +60,8 @@ _tables = list(_rules.keys())
 
 # deepagents 在线程池中并发执行工具,而 duckdb 连接非线程安全 → 必须加锁
 _DB_LOCK = threading.Lock()
+# 修复(审查): 串行化 process_one，防模块级 SANDBOX 全局被并发覆盖(副本隔离失效)
+_PROCESS_LOCK = threading.Lock()
 
 # ═══════════════════════════════════════════════════════════════
 # 副本(sandbox)—— 修复验证沙盒,不落主库
@@ -77,9 +79,13 @@ def _init_sandbox():
     SANDBOX = duckdb.connect(":memory:")
     with _DB_LOCK:
         for t in _tables:
-            df = con.execute(f'SELECT * FROM "{t}"').df()
-            SANDBOX.register(f"_df_{t}", df)
-            SANDBOX.execute(f'CREATE TABLE "{t}" AS SELECT * FROM _df_{t}')
+            try:
+                df = con.execute(f'SELECT * FROM "{t}"').df()
+                SANDBOX.register(f"_df_{t}", df)
+                SANDBOX.execute(f'CREATE TABLE "{t}" AS SELECT * FROM _df_{t}')
+            except Exception as e:
+                # 修复(审查): 单表缺失/读取失败不阻断沙盒构建，其余表照常处理
+                logger.warning("沙盒复制表 %s 失败(跳过): %s", t, e)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -121,6 +127,23 @@ def query_data(table: str, where: str = "", limit: int = 20) -> str:
         return f"查询失败: {e}"
 
 
+def _affected_rows(result) -> int:
+    """从 DuckDB 执行结果取"受影响行数"。
+
+    修复(审查): 无 RETURNING 的 UPDATE/DELETE 返回单行 Count 列，len(fetchall()) 恒为 1；
+    真实受影响数在 fetchall()[0][0]。SELECT / 带 RETURNING 的 DML 返回数据行，取 len()。
+    """
+    try:
+        rows = result.fetchall()
+    except Exception:
+        return 0
+    if result.description and rows and len(rows[0]) == 1:
+        col_name = (result.description[0][0] or "").lower()
+        if col_name == "count":
+            return int(rows[0][0] or 0)
+    return len(rows)
+
+
 @tool
 def apply_fix_to_sandbox(sql: str) -> str:
     """在副本上执行修复 SQL(不落主库),返回影响行数。仅 Verifier 调用。"""
@@ -128,7 +151,7 @@ def apply_fix_to_sandbox(sql: str) -> str:
         return "错误: 副本未初始化"
     try:
         with _DB_LOCK:
-            n = len(SANDBOX.execute(sql).fetchall())
+            n = _affected_rows(SANDBOX.execute(sql))
         return f"✅ 副本执行成功,影响 {n} 行"
     except Exception as e:
         return f"❌ 副本执行失败: {e}"
@@ -139,7 +162,7 @@ def apply_fix(table: str, anomaly_key: str, sql: str) -> str:
     """修复验证通过后,在主库落库执行修复 SQL。仅 Orchestrator 调用。"""
     try:
         with _DB_LOCK:
-            n = len(con.execute(sql).fetchall())
+            n = _affected_rows(con.execute(sql))
         audit.record_fix(table, anomaly_key, sql, n, "applied")
         audit.log(table, "apply_fix", f"{anomaly_key} 落库影响 {n} 行")
         return f"✅ 落库成功,{anomaly_key} 影响 {n} 行"
@@ -396,7 +419,16 @@ class DataQualityLoop:
     # ── 处理单张表 ────────────────────────────────────────
 
     def process_one(self, table: str, max_rounds: int = 3) -> dict:
-        """Python for 循环控制重试。循环耗尽 → 代码直接升级(不依赖编排者)"""
+        """Python for 循环控制重试。循环耗尽 → 代码直接升级(不依赖编排者)
+
+        修复(审查): SANDBOX 是模块级全局(每轮重建)，并发 process_one 会互相覆盖副本，
+        击穿"副本 dry-run 隔离"。用全局锁串行化单表处理(API/MCP/CLI 三端共用)。
+        """
+        with _PROCESS_LOCK:
+            return self._process_one_locked(table, max_rounds)
+
+    def _process_one_locked(self, table: str, max_rounds: int = 3) -> dict:
+        """process_one 实际逻辑(持锁调用)"""
         thread_id = f"quality-{table}"
         print(f"\n  {'=' * 60}")
         print(f"  📊 处理表: {table}")
@@ -448,7 +480,17 @@ class DataQualityLoop:
         print(f"  🔍 [发现] {len(tables)} 张配置表")
 
         for t in tables:
-            result = self.process_one(t)
+            # 修复(审查): 单表故障(缺表/读取失败)不中断整个监控循环——记录后跳过
+            try:
+                result = self.process_one(t)
+            except Exception as e:
+                logger.error("表 %s 处理失败,跳过: %s", t, e)
+                audit.log(t, "process_error", str(e))
+                self.stats.records.append(
+                    {"table": t, "status": "error", "rounds": 0}
+                )
+                print(f"  └─ ❌ {t}: 处理失败(已跳过) {e}")
+                continue
             self.stats.records.append(result)
             icon = "✅" if result["status"] == "completed" else "🆘"
             print(f"  └─ {icon} {t}: {result['status']}({result['rounds']}轮)")

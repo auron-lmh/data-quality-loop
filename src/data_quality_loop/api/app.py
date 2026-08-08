@@ -45,7 +45,12 @@ def verify_token(credentials=Depends(security)):
 
 
 class FixRequest(BaseModel):
+    # 修复(审查): 边界校验——0/负数空转即 escalate，超大值阻塞数小时
     max_rounds: int = 3
+
+    @classmethod
+    def clamp_rounds(cls, v: int) -> int:
+        return max(1, min(int(v), 10))
 
 
 class EscalateResolve(BaseModel):
@@ -82,7 +87,8 @@ def fix_table(table: str, req: FixRequest | None = None, _=Depends(verify_token)
     """对指定表跑一轮完整质检循环(Fixer→Verifier→落库/升级)。同步,可能耗时几十秒。"""
     if table not in _rules:
         raise HTTPException(404, f"表 {table} 未配置质量规则")
-    result = get_loop().process_one(table, max_rounds=(req.max_rounds if req else 3))
+    rounds = FixRequest.clamp_rounds(req.max_rounds) if req else 3
+    result = get_loop().process_one(table, max_rounds=rounds)
     return result
 
 

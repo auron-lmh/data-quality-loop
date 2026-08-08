@@ -20,6 +20,7 @@ services:
       - "8502:8500"
     environment:
       # 从 .env 注入（不留空则开发模式鉴权放行）
+      - TZ=Asia/Shanghai
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
       - API_TOKEN=${API_TOKEN:-}
@@ -46,6 +47,7 @@ services:
       - "8600:8600"
     environment:
       # 看板通过服务名访问 api
+      - TZ=Asia/Shanghai
       - DQL_API_URL=http://api:8500
       - API_TOKEN=${API_TOKEN:-}
       - DQL_UI_PORT=8600

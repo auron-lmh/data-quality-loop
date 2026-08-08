@@ -104,17 +104,25 @@ def _value_enum(con, table, column, allowed) -> Optional[Anomaly]:
 
 def _amount_reconciliation(con, table, detail_table, detail_column, detail_date_column,
                            summary_column, summary_date_column, tolerance=0.5) -> Optional[Anomaly]:
-    """金额勾稽:明细按日求和 vs 汇总,差异超容差即异常"""
+    """金额勾稽:明细按日求和 vs 汇总,差异超容差即异常
+
+    修复(审查): INNER JOIN 会静默丢弃"汇总缺整天/NULL日期"的勾稽差异。
+    改 FULL OUTER JOIN + COALESCE: 明细有天而汇总没有(或反之)、或日期为 NULL,
+    都被视为不平并检出。
+    """
     sql = f'''
     WITH detail AS (
         SELECT TRY_STRPTIME(CAST("{detail_date_column}" AS VARCHAR), '%Y-%m-%d') AS d,
                SUM(COALESCE("{detail_column}", 0)) AS v
         FROM "{detail_table}" GROUP BY 1
     )
-    SELECT d.d, d.v, s."{summary_column}", d.v - s."{summary_column}" AS diff
+    SELECT COALESCE(d.d, s."{summary_date_column}") AS day,
+           COALESCE(d.v, 0) AS detail_v,
+           COALESCE(s."{summary_column}", 0) AS summary_v,
+           COALESCE(d.v, 0) - COALESCE(s."{summary_column}", 0) AS diff
     FROM detail d
-    JOIN "{table}" s ON s."{summary_date_column}" = d.d
-    WHERE ABS(d.v - s."{summary_column}") > {tolerance}
+    FULL OUTER JOIN "{table}" s ON s."{summary_date_column}" = d.d
+    WHERE ABS(COALESCE(d.v, 0) - COALESCE(s."{summary_column}", 0)) > {tolerance}
     '''
     rows = con.execute(sql).fetchall()
     if rows:

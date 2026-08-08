@@ -131,7 +131,9 @@ def main():
         CREATE TABLE orders_daily_summary AS
         SELECT TRY_STRPTIME(CAST(order_date AS VARCHAR), '%Y-%m-%d') AS order_date,
                SUM(COALESCE(amount, 0)) AS gmv
-        FROM orders GROUP BY 1
+        FROM orders
+        WHERE TRY_STRPTIME(CAST(order_date AS VARCHAR), '%Y-%m-%d') IS NOT NULL
+        GROUP BY 1
     """)
     recon_dates = [r[0] for r in con.execute(
         "SELECT order_date FROM orders_daily_summary WHERE order_date IS NOT NULL "

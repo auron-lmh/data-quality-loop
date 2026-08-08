@@ -67,7 +67,7 @@ def anomalies_rows():
         [
             a.get("table", ""),
             a.get("rule", ""),
-            a.get("rows_affected") or a.get("count") or "-",
+            str(a.get("evidence_rows") or a.get("rows_affected") or a.get("count") or "-"),
         ]
         for a in d.get("anomalies", [])
     ]
