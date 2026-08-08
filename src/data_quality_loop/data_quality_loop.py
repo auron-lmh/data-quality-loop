@@ -43,7 +43,10 @@ from data_quality_loop.quality_rules import load_rules as _load_rules, run_quali
 # ═══════════════════════════════════════════════════════════════
 DB_PATH = os.path.join(ROOT, "data", "warehouse.duckdb")
 RULES_PATH = os.path.join(ROOT, "configs", "quality_rules.yaml")
-SKILLS = os.path.join(ROOT, "skills")
+# FilesystemBackend(virtual_mode=True) 用虚拟路径解析: root_dir 映射到 "/"，
+# 必须传 "/skills"（root 相对）而非绝对路径 —— 绝对路径会被拼成 root+path → path_not_found。
+# 修复: Windows 上绝对路径碰巧能解析，Linux 容器里 /app/skills 解析失败 → 统一用虚拟路径。
+SKILLS = "/" + os.path.relpath(os.path.join(ROOT, "skills"), ROOT).replace(os.sep, "/")
 
 con = duckdb.connect(DB_PATH)                       # 主库连接(读写,供落库)
 _rules = _load_rules(RULES_PATH)
