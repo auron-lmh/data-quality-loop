@@ -24,7 +24,13 @@ logger = logging.getLogger(__name__)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", line_buffering=True)
+# 修复: 用 reconfigure 设置 UTF-8 输出而非替换 sys.stdout。
+# 替换(TextIOWrapper)会破坏 pytest capture 与其它引用 sys.stdout 的组件(I/O on closed file)。
+try:
+    sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
+    sys.stderr.reconfigure(encoding="utf-8", line_buffering=True)
+except Exception:
+    pass  # 无 reconfigure(如已捕获环境)则跳过，不影响功能
 
 import duckdb
 from langchain.tools import tool
