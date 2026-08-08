@@ -54,6 +54,8 @@ RULES_PATH = os.path.join(ROOT, "configs", "quality_rules.yaml")
 # 修复: Windows 上绝对路径碰巧能解析，Linux 容器里 /app/skills 解析失败 → 统一用虚拟路径。
 SKILLS = "/" + os.path.relpath(os.path.join(ROOT, "skills"), ROOT).replace(os.sep, "/")
 
+# 修复(CI): data/ 被 gitignore，裸环境(CI/新克隆)不存在 → 先建目录再连接
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 con = duckdb.connect(DB_PATH)                       # 主库连接(读写,供落库)
 _rules = _load_rules(RULES_PATH)
 _tables = list(_rules.keys())
