@@ -16,7 +16,8 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install pytest duckdb pyyaml pandas python-dotenv
+        # 含 deepagents/langchain 等（test_convergence 导入完整模块需要）
+        run: pip install -r requirements.txt pytest
 
       - name: Run unit tests
         run: python -m pytest tests/ -q
