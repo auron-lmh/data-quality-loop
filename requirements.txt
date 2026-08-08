@@ -16,3 +16,6 @@ python-dotenv>=1.0
 fastapi>=0.110
 uvicorn>=0.29
 mcp>=2.0
+
+# ========== 看板 UI (M5, 人类友好界面) ==========
+gradio>=5.0.0

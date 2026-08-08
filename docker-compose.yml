@@ -1,10 +1,10 @@
 # Data Quality Loop — Docker Compose 部署
-# 单服务: FastAPI，零外部依赖（仅 DeepSeek API）
+# 双服务: FastAPI + Gradio 看板，零外部依赖（仅 DeepSeek API）
 #
 # 用法:
 #   cp .env.example .env      # 填 DEEPSEEK_API_KEY
 #   docker compose up -d --build
-#   访问: http://<VM_IP>:8502/docs
+#   访问: API http://<VM_IP>:8502/docs · 看板 http://<VM_IP>:8600
 #
 # 端口说明: VM 上 8500 已被第二项目 data-agent-api 占用，宿主端口映射到 8502
 # （容器内部端口保持 8500，改宿主机映射即可，互不影响）
@@ -32,4 +32,24 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+    restart: unless-stopped
+
+  # ── 看板 UI（Gradio，人类友好界面）──
+  ui:
+    container_name: dql-ui
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: data-quality-loop:latest
+    command: ["python", "-m", "data_quality_loop.ui.app"]
+    ports:
+      - "8600:8600"
+    environment:
+      # 看板通过服务名访问 api
+      - DQL_API_URL=http://api:8500
+      - API_TOKEN=${API_TOKEN:-}
+      - DQL_UI_PORT=8600
+    depends_on:
+      api:
+        condition: service_healthy
     restart: unless-stopped
