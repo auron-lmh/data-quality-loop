@@ -5,6 +5,7 @@
 data/warehouse.duckdb
 data/quality_audit.db
 data/*.duckdb
+data/*.log
 
 # ========== Python ==========
 __pycache__/
