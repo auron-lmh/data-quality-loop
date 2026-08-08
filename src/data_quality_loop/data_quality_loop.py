@@ -16,8 +16,11 @@ Loop Engineering 核心设计:
   python -m data_quality_loop.data_quality_loop --interval 30 --max-rounds 3
 """
 import os, sys, time, json, io, threading
+import logging
 from datetime import datetime
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
@@ -353,14 +356,32 @@ class DataQualityLoop:
     # ── 结果判断 ──────────────────────────────────────────
 
     def _check_result(self, orchestrator_text: str, table: str) -> str | None:
-        """优先从编排者文本判断,主库质检作为兜底"""
-        if "审查通过" in orchestrator_text or "finalize_quality" in orchestrator_text:
-            return "completed"
+        """完成判断: 主库重跑质检为权威依据（不信任编排者文本自报）。
+
+        背景(修复): 曾出现编排者文本含 "finalize_quality" 即判完成，但实际
+        apply_fix 只落库部分修复（4 项异常只落 1 项），导致残留异常被误判收敛。
+        → 改为先重跑主库质检: 无残留异常才是真完成。
+        编排者文本仅用于: ①质检异常时兜底 ②升级判断（escalate）。
+        """
+        # 权威: 主库重跑质检无残留异常 → 真完成
+        try:
+            remaining = _run_qc(con, table, _rules[table])
+            if not remaining:
+                return "completed"
+            logger.warning(
+                "主库质检仍有 %d 项残留(%s) → 不判完成（编排者文本不可信）",
+                len(remaining),
+                table,
+            )
+        except Exception as e:
+            # 质检异常(如表结构变化)时回退编排者文本判断
+            logger.warning("主库质检失败(%s), 回退文本判断: %s", table, e)
+            if "审查通过" in orchestrator_text or "finalize_quality" in orchestrator_text:
+                return "completed"
+
+        # 升级判断（编排者主动升级人工）
         if "escalate_quality" in orchestrator_text or "已升级人工" in orchestrator_text:
             return "escalated"
-        # 兜底:主库重跑质检无异常 → 视为完成
-        if not _run_qc(con, table, _rules[table]):
-            return "completed"
         return None
 
     # ── 处理单张表 ────────────────────────────────────────
