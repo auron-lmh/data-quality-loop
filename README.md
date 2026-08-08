@@ -105,16 +105,29 @@ PYTHONPATH=src python -m uvicorn data_quality_loop.api.app:app --port 8500
 PYTHONPATH=src python -m data_quality_loop.mcp
 ```
 
-### 5. Docker 部署（VM）
+### 5. Docker 部署（VM，双服务）
 
 ```bash
-# 单服务容器化（对齐电商系统标准）; 宿主机端口 8502 → 容器 8500
+# 双服务容器化: API(宿主 8502 → 容器 8500) + Gradio 看板(8600)
 docker compose up -d --build
 docker compose run --rm api python scripts/gen_dirty_data.py   # 重建数仓(首次)
+docker compose restart api                                     # duckdb catalog 重新读取
 curl http://localhost:8502/health                              # {"status":"ok"}
 ```
 
-`Dockerfile` + `docker-compose.yml`（data/ 卷持久化 + 健康检查 + .env 注入 DeepSeek key）。
+**访问**：API 文档 `http://<VM_IP>:8502/docs`（Authorize 填 `API_TOKEN`）· 看板 `http://<VM_IP>:8600`
+
+### 6. 看板 UI（Gradio）
+
+```bash
+# 本地运行（需 gradio）
+DQL_API_URL=http://localhost:8500 API_TOKEN=... python -m data_quality_loop.ui.app
+# 或 Docker: docker compose up -d ui (端口 8600)
+```
+
+5 个 Tab：**概览 / 异常清单 / 触发修复 / 质检报告 / 升级清单**——人类友好，无需手敲 API。
+
+`.env` 的 `API_TOKEN` 用于 Bearer 鉴权（留空则开发模式放行）。
 
 ## 📂 项目结构
 
