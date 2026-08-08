@@ -105,6 +105,17 @@ PYTHONPATH=src python -m uvicorn data_quality_loop.api.app:app --port 8500
 PYTHONPATH=src python -m data_quality_loop.mcp
 ```
 
+### 5. Docker 部署（VM）
+
+```bash
+# 单服务容器化（对齐电商系统标准）; 宿主机端口 8502 → 容器 8500
+docker compose up -d --build
+docker compose run --rm api python scripts/gen_dirty_data.py   # 重建数仓(首次)
+curl http://localhost:8502/health                              # {"status":"ok"}
+```
+
+`Dockerfile` + `docker-compose.yml`（data/ 卷持久化 + 健康检查 + .env 注入 DeepSeek key）。
+
 ## 📂 项目结构
 
 ```

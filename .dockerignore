@@ -1,0 +1,26 @@
+# 密钥
+.env
+.env.example
+
+# 数据(生成物,volume 持久化)
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 工具
+.pytest_cache/
+.ruff_cache/
+.idea/
+.vscode/
+
+# Git
+.git/
+.github/
+
+# 日志
+logs/

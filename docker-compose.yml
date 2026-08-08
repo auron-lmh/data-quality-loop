@@ -1,0 +1,35 @@
+# Data Quality Loop — Docker Compose 部署
+# 单服务: FastAPI，零外部依赖（仅 DeepSeek API）
+#
+# 用法:
+#   cp .env.example .env      # 填 DEEPSEEK_API_KEY
+#   docker compose up -d --build
+#   访问: http://<VM_IP>:8502/docs
+#
+# 端口说明: VM 上 8500 已被第二项目 data-agent-api 占用，宿主端口映射到 8502
+# （容器内部端口保持 8500，改宿主机映射即可，互不影响）
+
+services:
+  api:
+    container_name: dql-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: data-quality-loop:latest
+    ports:
+      - "8502:8500"
+    environment:
+      # 从 .env 注入（不留空则开发模式鉴权放行）
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - API_TOKEN=${API_TOKEN:-}
+    volumes:
+      # 数仓 + SQLite 审计持久化（Dockerfile 不 COPY data，启动时目录存在即可）
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
